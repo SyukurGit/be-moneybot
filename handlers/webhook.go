@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time" // PENTING: Untuk fitur daily limit
 
 	"github.com/gin-gonic/gin"
 )
@@ -77,11 +78,10 @@ func TelegramWebhook(c *gin.Context) {
 		data := payload.CallbackQuery.Data
 		clickerID := payload.CallbackQuery.From.ID // ID yang klik
 
-		// Cek Keamanan DB (Gunakan clickerID bukan chatID)
+		// Cek Keamanan DB
 		var user models.User
 		if err := database.DB.Where("telegram_id = ?", clickerID).First(&user).Error; err != nil {
-			// Jika user yang klik tidak dikenal, abaikan saja
-			return
+			return 
 		}
 
 		// LOGIKA TOMBOL HAPUS
@@ -89,22 +89,20 @@ func TelegramWebhook(c *gin.Context) {
 			idStr := strings.TrimPrefix(data, "del_yes_")
 			id, _ := strconv.Atoi(idStr)
 
-			// Hapus Data (Pastikan milik user yang klik)
+			// Hapus Data
 			res := database.DB.Where("id = ? AND user_id = ?", id, user.ID).Delete(&models.Transaction{})
 			
 			if res.RowsAffected > 0 {
 				editMessage(chatID, messageID, fmt.Sprintf("✅ *Sukses!* Data ID %d berhasil dihapus.", id))
 			} else {
-				editMessage(chatID, messageID, "❌ Gagal hapus. Data mungkin sudah hilang atau bukan milik Anda.")
+				editMessage(chatID, messageID, "❌ Gagal hapus. Data mungkin sudah hilang.")
 			}
 		} else if data == "del_cancel" {
 			editMessage(chatID, messageID, "👌 Penghapusan dibatalkan.")
 		
 		// LOGIKA TOMBOL KATEGORI (Save Income/Expense)
-		// Format Data: save_type_amount_Category
 		} else if strings.HasPrefix(data, "save_") {
 			parts := strings.Split(data, "_")
-			// parts[0]=save, parts[1]=type(income/expense), parts[2]=amount, parts[3]=Category
 			if len(parts) >= 4 {
 				tipe := parts[1]
 				amount, _ := strconv.Atoi(parts[2])
@@ -120,9 +118,16 @@ func TelegramWebhook(c *gin.Context) {
 				database.DB.Create(&trx)
 
 				icon := "Dn"
-				if tipe == "income" { icon = "UP" }
+				alertMsg := ""
+
+				if tipe == "income" { 
+					icon = "UP" 
+				} else {
+					// Cek Limit Harian (Fitur Baru)
+					alertMsg = checkDailyLimit(user.ID, amount)
+				}
 				
-				finalMsg := fmt.Sprintf("✅ *Tersimpan!*\nID: %d\n%s Rp %d\n📂 %s", trx.ID, icon, amount, category)
+				finalMsg := fmt.Sprintf("✅ *Tersimpan!*\nID: %d\n%s Rp %d\n📂 %s%s", trx.ID, icon, amount, category, alertMsg)
 				editMessage(chatID, messageID, finalMsg)
 			}
 		}
@@ -142,8 +147,7 @@ func TelegramWebhook(c *gin.Context) {
 	// Cek User di DB
 	var user models.User
 	if err := database.DB.Where("telegram_id = ?", chatID).First(&user).Error; err != nil {
-		// PERUBAHAN: Balas pesan jika user tidak terdaftar
-		pesan := "🚫 Maaf, Anda belum terdaftar dalam sistem.\n\nSilakan hubungi admin *@sykurr88* untuk pendaftaran."
+		pesan := "🚫 Maaf, Anda belum terdaftar dalam sistem.\n\nSilakan hubungi admin *@unxpctedd* untuk pendaftaran."
 		sendReply(chatID, pesan, nil)
 		c.JSON(http.StatusOK, gin.H{"status": "replied_unregistered"})
 		return
@@ -160,7 +164,7 @@ func TelegramWebhook(c *gin.Context) {
 
 		var trx models.Transaction
 		if err := database.DB.Where("id = ? AND user_id = ?", id, user.ID).First(&trx).Error; err != nil {
-			sendReply(chatID, "❌ Data tidak ditemukan atau bukan milik Anda.", nil)
+			sendReply(chatID, "❌ Data tidak ditemukan.", nil)
 			return
 		}
 
@@ -185,7 +189,22 @@ func TelegramWebhook(c *gin.Context) {
 		return
 	}
 	if text == "/start" || text == "/help" {
-		sendReply(chatID, "🤖 *Syukur Bot*\n\n• `+50000` (Auto Kategori)\n• `+50000 Gaji` (Manual)\n• `/del <ID>` (Hapus)", nil)
+		helpText :=
+			"🤖 *Syukur MoneyBot*\n\n" +
+			"*Perintah Utama*\n" +
+			"• /saldo — Lihat total pemasukan, pengeluaran, dan saldo.\n" +
+			"• /del <ID> — Hapus transaksi (dengan konfirmasi tombol).\n\n" +
+			"*Input Transaksi*\n" +
+			"• +50000 — Simpan pemasukan (bot meminta kategori).\n" +
+			"• -20000 — Simpan pengeluaran (bot meminta kategori).\n" +
+			"• +50000 Gaji — Simpan langsung dengan kategori.\n" +
+			"• -20000 Makan bakso — Simpan lengkap beserta catatan.\n\n" +
+			"*Tombol Otomatis*\n" +
+			"• Jika input hanya angka (+ / -), bot menampilkan pilihan kategori.\n" +
+			"• Saat menggunakan /del <ID>, bot menampilkan tombol *Hapus* atau *Batal*.\n\n" +
+			"Jika muncul pesan *Anda belum terdaftar*, hubungi admin: @sykurr88"
+
+		sendReply(chatID, helpText, nil)
 		return
 	}
 
@@ -248,11 +267,60 @@ func TelegramWebhook(c *gin.Context) {
 	database.DB.Create(&trx)
 
 	icon := "Dn"
-	if tipe == "income" { icon = "UP" }
-	sendReply(chatID, fmt.Sprintf("✅ *Tersimpan!*\nID: %d\n%s Rp %d\n📂 %s", trx.ID, icon, amount, parts[1]), nil)
+	alertMsg := ""
+
+	if tipe == "income" { 
+		icon = "UP" 
+	} else {
+		// Cek Limit Harian (Fitur Baru)
+		alertMsg = checkDailyLimit(user.ID, amount)
+	}
+	
+	pesan := fmt.Sprintf("✅ *Tersimpan!*\nID: %d\n%s Rp %d\n📂 %s%s", trx.ID, icon, amount, parts[1], alertMsg)
+	sendReply(chatID, pesan, nil)
+	c.JSON(http.StatusOK, gin.H{"status": "saved"})
 }
 
 // --- HELPERS ---
+
+// Helper Baru: Cek apakah limit harian terlampaui?
+func checkDailyLimit(userID uint, currentAmount int) string {
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		return ""
+	}
+
+	// Jika user tidak set limit (0), abaikan
+	if user.DailyLimit <= 0 {
+		return ""
+	}
+
+	// Hitung total pengeluaran HARI INI
+	var totalToday int
+	now := time.Now()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+	database.DB.Model(&models.Transaction{}).
+		Where("user_id = ? AND type = 'expense' AND created_at >= ?", userID, startOfDay).
+		Select("COALESCE(SUM(amount), 0)").Row().Scan(&totalToday)
+
+	// Cek apakah melebih limit?
+	// (Total Hari Ini SUDAH termasuk transaksi yang baru saja diinput karena checkDailyLimit dipanggil setelah Create)
+	if totalToday >= user.DailyLimit {
+    pesan := user.AlertMessage
+    if pesan == "" {
+        pesan = "🔴 Kamu sudah melebihi limit harian!"
+    }
+
+    warning := "\n\n" +
+        "🚨 <i>Warning Limit : </i>\n" +
+        pesan
+
+    return warning
+}
+
+	return ""
+}
 
 func handleCekSaldo(chatID int64, userID uint) {
 	var trx []models.Transaction
@@ -272,7 +340,7 @@ func sendReply(chatID int64, text string, markup *InlineKeyboardMarkup) {
 	msg := TelegramResponse{
 		ChatID:      chatID,
 		Text:        text,
-		ParseMode:   "Markdown",
+		ParseMode:   "HTML", // Ubah ke HTML supaya tag <b> di alert berfungsi (atau Markdown)
 		ReplyMarkup: markup,
 	}
 	
@@ -289,7 +357,7 @@ func editMessage(chatID int64, messageID int, text string) {
 		ChatID:    chatID,
 		MessageID: messageID,
 		Text:      text,
-		ParseMode: "Markdown",
+		ParseMode: "HTML", // Samakan dengan sendReply
 	}
 
 	body, _ := json.Marshal(msg)

@@ -39,6 +39,8 @@ func main() {
 		api.GET("/summary", handlers.GetSummary)
 		api.GET("/chart/daily", handlers.GetDailyChart)
 		api.GET("/categories", handlers.GetCategorySummary)
+		api.GET("/user/settings", handlers.GetUserSettings)
+    api.PUT("/user/settings", handlers.UpdateUserSettings)
 
 		// Fitur Super Admin (BARU)
 		// Aksesnya nanti: POST /api/admin/users
