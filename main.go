@@ -41,6 +41,7 @@ func main() {
 		api.GET("/categories", handlers.GetCategorySummary)
 		api.GET("/user/settings", handlers.GetUserSettings)
     api.PUT("/user/settings", handlers.UpdateUserSettings)
+	api.GET("/export", handlers.ExportExcel)
 
 		// Fitur Super Admin (BARU)
 		// Aksesnya nanti: POST /api/admin/users
