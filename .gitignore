@@ -2,3 +2,6 @@
 .env*
 finance.db
 finance.db-journal
+moneybot-server
+*.exe
+*.out
