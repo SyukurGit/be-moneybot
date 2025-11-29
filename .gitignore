@@ -1,2 +1,4 @@
 .env
 .env*
+finance.db
+finance.db-journal
