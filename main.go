@@ -27,8 +27,9 @@ func main() {
 
 	// Public Routes
 	r.POST("/login", handlers.Login)
-	r.POST("/register-admin", handlers.RegisterAdmin)
+	r.POST("/register", handlers.Register) // Dulu register-admin, sekarang register umum
 	r.POST("/telegram/webhook", handlers.TelegramWebhook)
+	r.POST("/setup-owner", handlers.RegisterOwner)
 
 	// Protected Routes (Butuh Token)
 	api := r.Group("/api")
@@ -43,6 +44,10 @@ func main() {
     api.PUT("/user/settings", handlers.UpdateUserSettings)
 	api.GET("/export", handlers.ExportExcel)
 
+	api.POST("/transactions", handlers.CreateTransaction) // Input Data
+		api.GET("/transactions/today", handlers.GetTodayTransactions) // Data Hari Ini
+		api.DELETE("/transactions/:id", handlers.DeleteTransaction) // Hapus Data
+
 		// Fitur Super Admin (BARU)
 		// Aksesnya nanti: POST /api/admin/users
 		admin := api.Group("/admin")
@@ -53,6 +58,7 @@ func main() {
 
 			admin.GET("/users/:id/stats", handlers.GetUserStats) // Get Detail
     admin.PUT("/users/:id", handlers.UpdateUser)         // Edit User
+	admin.PATCH("/users/:id/status", handlers.UpdateUserStatus) // Edit Status/Trial
 		}
 	}
 
