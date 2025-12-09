@@ -27,27 +27,24 @@ func main() {
 
 	// Public Routes
 	r.POST("/login", handlers.Login)
-	r.POST("/register", handlers.Register)
+	r.POST("/register", handlers.Register) // Dulu register-admin, sekarang register umum
 	r.POST("/telegram/webhook", handlers.TelegramWebhook)
 	r.POST("/setup-owner", handlers.RegisterOwner)
 
 	// Protected Routes (Butuh Token)
 	api := r.Group("/api")
-	api.Use(middleware.JwtAuthMiddleware()) 
-    // PERHATIAN: JANGAN PASANG RequireActiveOrTrial DI SINI DULU!
+	api.Use(middleware.JwtAuthMiddleware())
 
-    // 1. ROUTE BEBAS (Bisa diakses user Suspended)
-    // Cuma butuh login, tidak peduli statusnya apa.
-    // Verify payment harus ditaruh di sini!
-	api.POST("/verify-payment", handlers.VerifyPayment) 
+    // 1. ROUTE BEBAS (Verify Payment bisa diakses walau status Suspended)
+    // Diletakkan LANGSUNG di bawah 'api', sebelum middleware 'RequireActiveOrTrial'
+	api.POST("/verify-payment", handlers.VerifyPayment)
 
-
-    // 2. ROUTE KETAT (User Suspended DILARANG MASUK)
-    // Kita buat grup baru di dalam 'api' yang pakai middleware tambahan
-    strictApi := api.Group("/")
-	strictApi.Use(middleware.RequireActiveOrTrial()) // <--- Middleware Penjaga Pintu Dipasang DISINI
+    // 2. ROUTE KETAT (Butuh Token + Status Active/Trial)
+    // Kita buat grup baru 'strictApi' yang menerapkan middleware tambahan
+	strictApi := api.Group("/")
+    strictApi.Use(middleware.RequireActiveOrTrial())
 	{
-		// Fitur User Biasa (User Suspended GAK BISA AKSES INI)
+		// Fitur User Biasa
 		strictApi.GET("/transactions", handlers.GetTransactions)
 		strictApi.GET("/summary", handlers.GetSummary)
 		strictApi.GET("/chart/daily", handlers.GetDailyChart)
@@ -56,20 +53,21 @@ func main() {
 		strictApi.PUT("/user/settings", handlers.UpdateUserSettings)
 		strictApi.GET("/export", handlers.ExportExcel)
 
-		strictApi.POST("/transactions", handlers.CreateTransaction)
-		strictApi.GET("/transactions/today", handlers.GetTodayTransactions)
-		strictApi.DELETE("/transactions/:id", handlers.DeleteTransaction)
+		strictApi.POST("/transactions", handlers.CreateTransaction) // Input Data
+		strictApi.GET("/transactions/today", handlers.GetTodayTransactions) // Data Hari Ini
+		strictApi.DELETE("/transactions/:id", handlers.DeleteTransaction) // Hapus Data
 
-		// Fitur Super Admin
+		// Fitur Super Admin (BARU)
+		// Aksesnya nanti: POST /api/admin/users
 		admin := strictApi.Group("/admin")
 		{
-			admin.GET("/users", handlers.GetAllUsers)
-			admin.POST("/users", handlers.CreateUser)
-			admin.DELETE("/users/:id", handlers.DeleteUser)
+			admin.GET("/users", handlers.GetAllUsers)      // Lihat semua user
+			admin.POST("/users", handlers.CreateUser)      // Tambah user baru
+			admin.DELETE("/users/:id", handlers.DeleteUser) // Hapus user
 
-			admin.GET("/users/:id/stats", handlers.GetUserStats)
-			admin.PUT("/users/:id", handlers.UpdateUser)
-			admin.PATCH("/users/:id/status", handlers.UpdateUserStatus)
+			admin.GET("/users/:id/stats", handlers.GetUserStats) // Get Detail
+			admin.PUT("/users/:id", handlers.UpdateUser)         // Edit User
+			admin.PATCH("/users/:id/status", handlers.UpdateUserStatus) // Edit Status/Trial
 		}
 	}
 
