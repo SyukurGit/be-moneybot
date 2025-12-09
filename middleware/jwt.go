@@ -78,14 +78,15 @@ func JwtAuthMiddleware() gin.HandlerFunc {
 		}
 
 		// Skenario 1: User sudah SUSPENDED (Masa trial habis & belum bayar)
-		if user.Status == "suspended" {
-			c.JSON(http.StatusPaymentRequired, gin.H{
-				"error": "Masa trial berakhir. Silakan lakukan pembayaran.",
-				"code": "PAYMENT_REQUIRED",
-			})
-			c.Abort()
-			return
-		}
+
+		// if user.Status == "suspended" {
+		// 	c.JSON(http.StatusPaymentRequired, gin.H{
+		// 		"error": "Masa trial berakhir. Silakan lakukan pembayaran.",
+		// 		"code": "PAYMENT_REQUIRED",
+		// 	})
+		// 	c.Abort()
+		// 	return
+		// }
 
 		// Skenario 2: User masih TRIAL, tapi waktunya sudah habis
 		if user.Status == "trial" && time.Now().After(user.TrialEndsAt) {
@@ -105,4 +106,29 @@ func JwtAuthMiddleware() gin.HandlerFunc {
 		// Lanjut ke controller
 		c.Next()
 	}
+}
+
+// Middleware khusus untuk memastikan user BELUM suspended
+func RequireActiveOrTrial() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        userID, exists := c.Get("userID")
+        if !exists {
+            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+            return
+        }
+
+        var user models.User
+        // Pastikan import database dan models sudah benar (backend-gin/...)
+        if err := database.DB.First(&user, userID).Error; err != nil {
+            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+            return
+        }
+
+        if user.Status == "suspended" {
+            c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Masa trial berakhir. Silakan lakukan pembayaran."})
+            return
+        }
+
+        c.Next()
+    }
 }

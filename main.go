@@ -34,6 +34,7 @@ func main() {
 	// Protected Routes (Butuh Token)
 	api := r.Group("/api")
 	api.Use(middleware.JwtAuthMiddleware())
+	api.Use(middleware.RequireActiveOrTrial()) // <-- KITA BUTUH INI
 	{
 		// Fitur User Biasa
 		api.GET("/transactions", handlers.GetTransactions)
@@ -47,6 +48,7 @@ func main() {
 	api.POST("/transactions", handlers.CreateTransaction) // Input Data
 		api.GET("/transactions/today", handlers.GetTodayTransactions) // Data Hari Ini
 		api.DELETE("/transactions/:id", handlers.DeleteTransaction) // Hapus Data
+		api.POST("/verify-payment", handlers.VerifyPayment)
 
 		// Fitur Super Admin (BARU)
 		// Aksesnya nanti: POST /api/admin/users
