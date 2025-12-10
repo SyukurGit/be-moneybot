@@ -38,6 +38,7 @@ func main() {
 	r.POST("/register", handlers.Register) // Dulu register-admin, sekarang register umum
 	r.POST("/telegram/webhook", handlers.TelegramWebhook)
 	r.POST("/setup-owner", handlers.RegisterOwner)
+	r.Static("/uploads", "./uploads")
 
 	// Protected Routes (Butuh Token)
 	api := r.Group("/api")
@@ -64,6 +65,7 @@ func main() {
 		strictApi.POST("/transactions", handlers.CreateTransaction) // Input Data
 		strictApi.GET("/transactions/today", handlers.GetTodayTransactions) // Data Hari Ini
 		strictApi.DELETE("/transactions/:id", handlers.DeleteTransaction) // Hapus Data
+		strictApi.PUT("/user/profile", handlers.UpdateUserProfile)
 
 		// Fitur Super Admin (BARU)
 		// Aksesnya nanti: POST /api/admin/users
@@ -76,6 +78,9 @@ func main() {
 			admin.GET("/users/:id/stats", handlers.GetUserStats) // Get Detail
 			admin.PUT("/users/:id", handlers.UpdateUser)         // Edit User
 			admin.PATCH("/users/:id/status", handlers.UpdateUserStatus) // Edit Status/Trial
+			admin.GET("/payments", handlers.GetRecentPayments) // <--- ROUTE BARU
+			admin.DELETE("/payments/:id", handlers.DeletePaymentLog) // Hapus Satu
+        admin.DELETE("/payments", handlers.DeleteAllPaymentLogs) // Hapus Semua
 		}
 	}
 

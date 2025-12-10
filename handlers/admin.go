@@ -5,7 +5,7 @@ import (
 	"backend-gin/models"
 	"net/http"
 	"time"
-
+"os"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -175,6 +175,8 @@ func UpdateUser(c *gin.Context) {
 
 // 6. [BARU] UPDATE STATUS & SUBSCRIPTION
 // Endpoint: PATCH /api/admin/users/:id/status
+// 6. [BARU] UPDATE STATUS & SUBSCRIPTION
+// Endpoint: PATCH /api/admin/users/:id/status
 func UpdateUserStatus(c *gin.Context) {
 	if !isAdmin(c) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Akses ditolak!"})
@@ -190,7 +192,7 @@ func UpdateUserStatus(c *gin.Context) {
 
 	var input struct {
 		Status       string `json:"status"`         // 'active', 'suspended', 'trial'
-		AddTrialDays int    `json:"add_trial_days"` // +3 hari, +7 hari, dll
+		AddTrialDays int    `json:"add_trial_days"` // Bisa Positif (Nambah) atau Negatif (Kurang)
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -198,32 +200,37 @@ func UpdateUserStatus(c *gin.Context) {
 		return
 	}
 
-	// 1. Logic Ganti Status
-	if input.Status != "" {
-		if input.Status == "active" || input.Status == "suspended" || input.Status == "trial" {
-			user.Status = input.Status
-		} else {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Status harus: active / suspended / trial"})
-			return
-		}
-	}
-
-	// 2. Logic Tambah Hari Trial
+	// 1. Logic Perhitungan Hari (Tambah / Kurang)
 	if input.AddTrialDays != 0 {
-		// Jika trial sudah kadaluarsa, reset start dari sekarang
-		if time.Now().After(user.TrialEndsAt) {
+		// Jika user SUDAH expired sebelumnya, kita mulai hitungan dari SEKARANG
+		// Tapi kalau inputnya MINUS (mau kurangi hari), jangan reset ke now, pakai existing aja biar makin minus.
+		if time.Now().After(user.TrialEndsAt) && input.AddTrialDays > 0 {
 			user.TrialEndsAt = time.Now().Add(time.Duration(input.AddTrialDays) * 24 * time.Hour)
 		} else {
-			// Jika masih aktif, tambahkan harinya
+			// Jika masih aktif, atau mau mengurangi hari (minus)
 			user.TrialEndsAt = user.TrialEndsAt.Add(time.Duration(input.AddTrialDays) * 24 * time.Hour)
-		}
-		
-		// Kalau nambah hari, otomatis set status ke trial (kecuali admin minta lain)
-		if input.Status == "" {
-			user.Status = "trial"
 		}
 	}
 
+	// 2. Logic Status Otomatis (PENTING: Cek Hasil Perhitungan)
+	if time.Now().After(user.TrialEndsAt) {
+		// Jika hasil perhitungan membuat tanggal expired ada di masa lalu
+		user.Status = "suspended"
+	} else {
+		// Jika masih ada sisa waktu
+		if input.Status != "" {
+			// Kalau admin maksa set status tertentu
+			user.Status = input.Status
+		} else {
+			// Default logic: Kalau nambah hari, anggap trial/active
+			// Jangan ubah status kalau dia 'active' (bayar), tapi kalau 'suspended' ubah jadi 'trial'
+			if user.Status == "suspended" {
+				user.Status = "trial"
+			}
+		}
+	}
+
+	// 3. Simpan Perubahan
 	database.DB.Save(&user)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -234,4 +241,63 @@ func UpdateUserStatus(c *gin.Context) {
 			"trial_ends_at": user.TrialEndsAt,
 		},
 	})
+}
+
+// GET /api/admin/payments
+func GetRecentPayments(c *gin.Context) {
+    // (Tambahkan cek isAdmin di sini)
+    
+    var payments []models.PaymentLog
+    // Ambil 50 data terakhir, urutkan dari yang terbaru
+    if err := database.DB.Order("created_at desc").Limit(50).Find(&payments).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal ambil data"})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"data": payments})
+}
+
+func DeletePaymentLog(c *gin.Context) {
+	if !isAdmin(c) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Akses ditolak!"})
+		return
+	}
+
+	id := c.Param("id")
+	var log models.PaymentLog
+	if err := database.DB.First(&log, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Data tidak ditemukan"})
+		return
+	}
+
+	// 1. Hapus File Gambar Fisik
+	// Kita ignore errornya, kalau file udah gak ada, lanjut hapus DB aja
+	_ = os.Remove(log.ImagePath) 
+
+	// 2. Hapus Data di Database
+	database.DB.Delete(&log)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Data dan gambar berhasil dihapus"})
+}
+
+// 8. HAPUS SEMUA LOG PEMBAYARAN & BERSIHKAN FOLDER
+func DeleteAllPaymentLogs(c *gin.Context) {
+	if !isAdmin(c) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Akses ditolak!"})
+		return
+	}
+
+	var logs []models.PaymentLog
+	database.DB.Find(&logs)
+
+	// 1. Loop semua data untuk hapus gambarnya
+	for _, log := range logs {
+		_ = os.Remove(log.ImagePath)
+	}
+
+	// 2. Hapus Semua Data di Tabel (Hard Delete)
+	// Menggunakan Unscoped() atau Exec DELETE agar tabel bersih
+	database.DB.Exec("DELETE FROM payment_logs")
+
+	c.JSON(http.StatusOK, gin.H{"message": "Semua riwayat dan foto berhasil dikosongkan!"})
 }
