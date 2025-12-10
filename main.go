@@ -8,13 +8,21 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/gin-contrib/cors"
+
 )
 
+
+
+
 func main() {
+
+
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
+
+	
 
 	database.ConnectDatabase()
 
@@ -42,7 +50,7 @@ func main() {
     // 2. ROUTE KETAT (Butuh Token + Status Active/Trial)
     // Kita buat grup baru 'strictApi' yang menerapkan middleware tambahan
 	strictApi := api.Group("/")
-    strictApi.Use(middleware.RequireActiveOrTrial())
+    // strictApi.Use(middleware.RequireActiveOrTrial())
 	{
 		// Fitur User Biasa
 		strictApi.GET("/transactions", handlers.GetTransactions)
