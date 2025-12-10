@@ -49,6 +49,14 @@ func JwtAuthMiddleware() gin.HandlerFunc {
 		
 		// KONSISTENSI KEY: Gunakan "user_id" (snake_case) di seluruh aplikasi
 		c.Set("user_id", uint(userIDFloat))
+
+		// --- TAMBAHAN PENTING (FIX BUG ADMIN) ---
+		// Ambil role dari claims token dan simpan ke context
+		if role, okRole := claims["role"].(string); okRole {
+			c.Set("role", role)
+		}
+		// ----------------------------------------
+
 		c.Next()
 	}
 }
