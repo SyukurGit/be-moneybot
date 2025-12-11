@@ -34,156 +34,176 @@ type AIResponse struct {
 	Reason  string `json:"reason"`
 }
 
+// Helper untuk memastikan folder uploads ada
+func ensureUploadDir() string {
+	path := "./uploads"
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		os.Mkdir(path, 0755)
+	}
+	return path
+}
+
+// ---------------------------------------------------------
+// 1. VERIFIKASI OTOMATIS (AUTO - OCR)
+// ---------------------------------------------------------
 func VerifyPayment(c *gin.Context) {
-	// 1. Ambil User ID dari Token
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	// 2. Ambil File dari Form Upload
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "File diperlukan"})
 		return
 	}
-	defer file.Close() // Tutup file multipart stream
+	defer file.Close()
 
-	// Validasi Ukuran File (Maks 5MB)
-	if header.Size > 5*1024*1024 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Maksimal ukuran file 5MB"})
-		return
-	}
+	uploadDir := ensureUploadDir()
 
-	// 3. SIMPAN FILE KE SERVER (Local Storage)
-	// Buat folder uploads jika belum ada
-	uploadDir := "./uploads"
-	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
-		os.Mkdir(uploadDir, 0755)
-	}
-
-	// Generate nama file unik: userID_timestamp_namaasli
-	filename := fmt.Sprintf("%d_%d_%s", userID.(uint), time.Now().Unix(), filepath.Base(header.Filename))
+	// FIX NAMA FILE: Hapus spasi agar URL gambar tidak rusak
+	cleanFilename := strings.ReplaceAll(header.Filename, " ", "_")
+	filename := fmt.Sprintf("AUTO_%d_%d_%s", userID.(uint), time.Now().Unix(), cleanFilename)
 	savePath := filepath.Join(uploadDir, filename)
 
-	// Simpan file menggunakan helper Gin
 	if err := c.SaveUploadedFile(header, savePath); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan file gambar"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan file"})
 		return
 	}
 
-	// 4. KIRIM FILE LOKAL KE OCR.SPACE DENGAN RETRY
+	// PROSES OCR KE API EKSTERNAL
 	apiKey := os.Getenv("OCR_API_KEY")
+	// Jika API Key kosong, anggap manual check (fallback aman)
 	if apiKey == "" {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "API Key OCR belum disetting di .env"})
+		savePaymentLog(userID.(uint), filename, "MANUAL_CHECK", 0, "API Key Missing", c)
+		c.JSON(http.StatusAccepted, gin.H{"message": "OCR Off, masuk verifikasi manual", "manual_check": true})
 		return
 	}
 
+	// ... Logika OCR ...
 	var ocr OCRResponse
-	var errOCR error
-	maxRetries := 2 // Coba maksimal 2 kali
+	// var errOCR error
+	
+	// Buka file lokal untuk dikirim
+	savedFile, _ := os.Open(savePath)
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	fw, _ := w.CreateFormFile("file", filename)
+	io.Copy(fw, savedFile)
+	savedFile.Close()
+	w.WriteField("language", "eng")
+	w.WriteField("OCREngine", "2")
+	w.Close()
 
-	for i := 0; i <= maxRetries; i++ {
-		// Buka file yang baru saja disimpan untuk dikirim ke OCR
-		// Kita buka ulang setiap retry untuk memastikan pointer file di awal
-		savedFile, err := os.Open(savePath)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuka file tersimpan"})
-			return
-		}
-		
-		var buf bytes.Buffer
-		w := multipart.NewWriter(&buf)
+	req, _ := http.NewRequest("POST", "https://api.ocr.space/parse/image", &buf)
+	req.Header.Set("apikey", apiKey)
+	req.Header.Set("Content-Type", w.FormDataContentType())
 
-		// Masukkan file ke form-data request
-		fw, _ := w.CreateFormFile("file", filename)
-		io.Copy(fw, savedFile)
-		savedFile.Close() // Tutup file setelah dicopy ke buffer
-
-		// Setting parameter OCR
-		w.WriteField("language", "eng")
-		w.WriteField("OCREngine", "2") // Engine 2 biasanya lebih bagus untuk angka
-		w.Close()
-
-		// Kirim Request ke OCR.Space
-		req, _ := http.NewRequest("POST", "https://api.ocr.space/parse/image", &buf)
-		req.Header.Set("apikey", apiKey)
-		req.Header.Set("Content-Type", w.FormDataContentType())
-
-		// TIMEOUT DITINGKATKAN KE 60 DETIK
-		client := &http.Client{Timeout: 60 * time.Second} 
-		resp, err := client.Do(req)
-		
-		if err == nil {
-			defer resp.Body.Close()
-			body, _ := io.ReadAll(resp.Body)
-			
-			// Coba parse JSON
-			if jsonErr := json.Unmarshal(body, &ocr); jsonErr == nil {
-				// Jika sukses parsing dan OCR exit code valid, break loop
-				if ocr.OCRExitCode == 1 && len(ocr.ParsedResults) > 0 {
-					errOCR = nil
-					break
-				}
-			}
-		}
-		
-		errOCR = fmt.Errorf("Percobaan ke-%d gagal: %v", i+1, err)
-		time.Sleep(1 * time.Second) // Tunggu 1 detik sebelum retry
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	
+	if err != nil {
+		// Jika OCR Error/Timeout -> Lempar ke Manual
+		savePaymentLog(userID.(uint), filename, "MANUAL_CHECK", 0, "OCR Timeout", c)
+		c.JSON(http.StatusAccepted, gin.H{"message": "Gagal baca otomatis, masuk antrian admin.", "manual_check": true})
+		return
 	}
+	defer resp.Body.Close()
+	
+	body, _ := io.ReadAll(resp.Body)
+	json.Unmarshal(body, &ocr)
 
-	// Jika setelah retry masih gagal
-	if errOCR != nil || ocr.OCRExitCode != 1 || len(ocr.ParsedResults) == 0 {
-		// Fallback: Jangan gagalkan total, tapi beri info manual check
-		// Hapus kode error keras, kita log saja sebagai manual check
-		c.JSON(http.StatusAccepted, gin.H{
-			"message": "Upload berhasil, namun OCR lambat merespon. Admin akan verifikasi manual.",
-			"manual_check": true,
-		})
-		// Tetap simpan log tapi dengan status 'Pending Manual'
-		savePaymentLog(userID.(uint), filename, "FAILED_TIMEOUT", 0, "OCR Timeout/Error", c)
+	if ocr.OCRExitCode != 1 || len(ocr.ParsedResults) == 0 {
+		// Jika OCR Gagal Baca -> Lempar ke Manual
+		savePaymentLog(userID.(uint), filename, "MANUAL_CHECK", 0, "OCR Failed Read", c)
+		c.JSON(http.StatusAccepted, gin.H{"message": "Struk tidak terbaca, masuk antrian admin.", "manual_check": true})
 		return
 	}
 
 	text := strings.ToUpper(ocr.ParsedResults[0].ParsedText)
-
-	// 6. LOGIKA VALIDASI STRUK
 	result := extractPaymentInfo(text)
 
-	// 7. SIMPAN LOG & UPDATE USER
+	// SIMPAN LOG
+	// KUNCI: Jika Valid, simpan bank asli. Jika tidak, simpan deteksinya.
 	savePaymentLog(userID.(uint), filename, result.Bank, result.Amount, text, c)
 
-	// 8. KEPUTUSAN FINAL
 	if !result.IsValid {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Bukti ditolak: " + result.Reason})
 		return
 	}
 
-	// Jika Valid, Aktifkan User
+	// Aktifkan User
 	var user models.User
 	if err := database.DB.First(&user, userID).Error; err == nil {
 		user.Status = "active"
 		database.DB.Save(&user)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Pembayaran Valid! Akun Anda telah aktif.",
-		"data":    result,
-	})
+	c.JSON(http.StatusOK, gin.H{"message": "Pembayaran Valid! Akun Aktif.", "data": result})
 }
 
-// Helper untuk simpan log agar kode VerifyPayment lebih bersih
-func savePaymentLog(userID uint, filename, bank string, amount int64, rawText string, c *gin.Context) {
-	var user models.User
-	if err := database.DB.First(&user, userID).Error; err != nil {
+// ---------------------------------------------------------
+// 2. VERIFIKASI MANUAL (MANUAL UPLOAD)
+// ---------------------------------------------------------
+func ManualPaymentUpload(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
+
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File wajib ada"})
+		return
+	}
+	defer file.Close()
+
+	uploadDir := ensureUploadDir()
+
+	// FIX NAMA FILE: Tambah prefix MANUAL_ biar jelas
+	cleanFilename := strings.ReplaceAll(header.Filename, " ", "_")
+	filename := fmt.Sprintf("MANUAL_%d_%d_%s", userID.(uint), time.Now().Unix(), cleanFilename)
+	savePath := filepath.Join(uploadDir, filename)
+
+	if err := c.SaveUploadedFile(header, savePath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan file"})
+		return
+	}
+
+	// Update Status User -> Pending
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err == nil {
+		user.Status = "pending"
+		database.DB.Save(&user)
+	}
+
+	// SIMPAN LOG DENGAN CAP KHUSUS: "MANUAL_CHECK"
+	// Ini yang bikin gambar ini TAMPIL di Tab Manual Admin
+	log := models.PaymentLog{
+		UserID:         userID.(uint),
+		Username:       user.Username,
+		ImagePath:      "uploads/" + filename, // Path relatif untuk frontend
+		DetectedBank:   "MANUAL_CHECK",        // <--- FLAG PENTING
+		DetectedAmount: 0,
+		RawOCRResponse: "User upload manual (Bypass AI)",
+		CreatedAt:      time.Now(),
+	}
+	database.DB.Create(&log)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Terkirim ke Admin", "status": "pending"})
+}
+
+// HELPER SIMPAN LOG
+func savePaymentLog(userID uint, filename, bank string, amount int64, rawText string, c *gin.Context) {
+	var user models.User
+	database.DB.First(&user, userID)
 
 	paymentLog := models.PaymentLog{
 		UserID:         user.ID,
 		Username:       user.Username,
-		ImagePath:      "uploads/" + filename,
+		ImagePath:      "uploads/" + filename, // Pastikan format ini konsisten
 		DetectedBank:   bank,
 		DetectedAmount: amount,
 		RawOCRResponse: rawText,
@@ -192,57 +212,32 @@ func savePaymentLog(userID uint, filename, bank string, amount int64, rawText st
 	database.DB.Create(&paymentLog)
 }
 
-// ---------------------------
-// HELPER FUNCTIONS (Tetap sama)
-// ---------------------------
-
+// LOGIC EKSTRAKSI TEKS (Sama seperti sebelumnya)
 func extractPaymentInfo(text string) AIResponse {
 	r := AIResponse{}
-
-	// Cek kata kunci kesuksesan transfer
+	// Logic cek BERHASIL/SUCCESS
 	if !strings.Contains(text, "BERHASIL") && !strings.Contains(text, "SUCCESS") && !strings.Contains(text, "SUKSES") {
 		r.IsValid = false
-		r.Reason = "Tidak ditemukan status sukses transfer pada struk"
+		r.Reason = "Tidak ada kata BERHASIL/SUKSES"
 		return r
 	}
+	// Logic cek Bank
+	if strings.Contains(text, "BCA") { r.Bank = "BCA" } else 
+	if strings.Contains(text, "DANA") { r.Bank = "DANA" } else 
+	if strings.Contains(text, "GOPAY") { r.Bank = "GOPAY" } else 
+	if strings.Contains(text, "MANDIRI") { r.Bank = "MANDIRI" } else 
+	if strings.Contains(text, "BRI") { r.Bank = "BRI" } else { r.Bank = "Unknown" }
 
-	// Deteksi Bank
-	if strings.Contains(text, "BCA") {
-		r.Bank = "BCA"
-	} else if strings.Contains(text, "DANA") {
-		r.Bank = "DANA"
-	} else if strings.Contains(text, "GOPAY") {
-		r.Bank = "GOPAY"
-	} else if strings.Contains(text, "MANDIRI") {
-		r.Bank = "MANDIRI"
-	} else if strings.Contains(text, "BRI") {
-		r.Bank = "BRI"
-	} else {
-		r.Bank = "Unknown" // Tetap valid, tapi bank tidak dikenal
-	}
-
-	// Deteksi Nominal (Logic Parsing Sederhana)
-	// Mencari string yang diawali Rp/RP
+	// Logic cek Nominal (Simple)
 	lines := strings.Fields(text)
 	for _, part := range lines {
-		// Bersihkan titik dan koma
-		cleanPart := strings.ReplaceAll(part, ".", "")
-		cleanPart = strings.ReplaceAll(cleanPart, ",", "")
-
+		cleanPart := strings.ReplaceAll(strings.ReplaceAll(part, ".", ""), ",", "")
 		if strings.HasPrefix(cleanPart, "RP") {
-			// Hapus prefix RP
-			numStr := strings.TrimPrefix(cleanPart, "RP")
-			// Parsing ke int64
-			amount := parseInt(numStr)
-			if amount > 0 {
-				r.Amount = amount
-				break // Ambil angka pertama yang valid
-			}
+			r.Amount = parseInt(strings.TrimPrefix(cleanPart, "RP"))
+			if r.Amount > 0 { break }
 		}
 	}
-
 	r.IsValid = true
-	r.Reason = "OCR OK"
 	return r
 }
 

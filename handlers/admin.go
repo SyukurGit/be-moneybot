@@ -244,15 +244,19 @@ func UpdateUserStatus(c *gin.Context) {
 }
 
 // GET /api/admin/payments
+// handlers/admin.go
+
+// Di fungsi GetRecentPayments
+// Ubah query-nya sedikit agar mengutamakan yang MANUAL_CHECK di urutan atas
 func GetRecentPayments(c *gin.Context) {
-    // (Tambahkan cek isAdmin di sini)
-    
-    var payments []models.PaymentLog
-    // Ambil 50 data terakhir, urutkan dari yang terbaru
-    if err := database.DB.Order("created_at desc").Limit(50).Find(&payments).Error; err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal ambil data"})
+    if !isAdmin(c) {
+        c.JSON(http.StatusForbidden, gin.H{"error": "Akses ditolak!"})
         return
     }
+    
+    var payments []models.PaymentLog
+    // Urutkan: Manual Check dulu, baru tanggal terbaru
+    database.DB.Order("CASE WHEN detected_bank = 'MANUAL_CHECK' THEN 0 ELSE 1 END, created_at desc").Limit(50).Find(&payments)
 
     c.JSON(http.StatusOK, gin.H{"data": payments})
 }

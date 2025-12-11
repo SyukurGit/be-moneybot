@@ -39,6 +39,7 @@ func main() {
 	r.POST("/telegram/webhook", handlers.TelegramWebhook)
 	r.POST("/setup-owner", handlers.RegisterOwner)
 	r.Static("/uploads", "./uploads")
+	
 
 	// Protected Routes (Butuh Token)
 	api := r.Group("/api")
@@ -47,6 +48,8 @@ func main() {
     // 1. ROUTE BEBAS (Verify Payment bisa diakses walau status Suspended)
     // Diletakkan LANGSUNG di bawah 'api', sebelum middleware 'RequireActiveOrTrial'
 	api.POST("/verify-payment", handlers.VerifyPayment)
+	api.POST("/manual-payment", handlers.ManualPaymentUpload)
+	
 
     // 2. ROUTE KETAT (Butuh Token + Status Active/Trial)
     // Kita buat grup baru 'strictApi' yang menerapkan middleware tambahan
@@ -81,6 +84,7 @@ func main() {
 			admin.GET("/payments", handlers.GetRecentPayments) // <--- ROUTE BARU
 			admin.DELETE("/payments/:id", handlers.DeletePaymentLog) // Hapus Satu
         admin.DELETE("/payments", handlers.DeleteAllPaymentLogs) // Hapus Semua
+		
 		}
 	}
 
