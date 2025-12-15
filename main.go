@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/gin-contrib/cors"
+	"os"
 
 )
 
@@ -38,8 +39,16 @@ func main() {
 	r.POST("/register", handlers.Register) // Dulu register-admin, sekarang register umum
 	r.POST("/telegram/webhook", handlers.TelegramWebhook)
 	r.POST("/setup-owner", handlers.RegisterOwner)
-	r.Static("/uploads", "./uploads")
-	
+	cwd, _ := os.Getwd()
+log.Println("CWD:", cwd)
+
+uploadDir := "/home/ubuntu/moneybot/uploads"
+log.Println("Serving uploads from:", uploadDir)
+
+r.Static("/uploads", uploadDir)
+
+
+
 
 	// Protected Routes (Butuh Token)
 	api := r.Group("/api")
@@ -88,5 +97,5 @@ func main() {
 		}
 	}
 
-	r.Run(":8080")
+r.Run("0.0.0.0:8080")
 }

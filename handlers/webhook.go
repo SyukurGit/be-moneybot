@@ -140,12 +140,12 @@ func TelegramWebhook(c *gin.Context) {
 	// Cek User di DB
 	var user models.User
 	if err := database.DB.Where("telegram_id = ?", chatID).First(&user).Error; err != nil {
-		// PERUBAHAN: Pesan panduan pendaftaran yang lebih jelas
-		pesan := "🚫 <b>Akses Ditolak</b>\n\n" +
-			"Anda belum terdaftar dalam sistem ini.\n\n" +
-			"👉 <b>Cara Daftar:</b>\n" +
-			"1. Chat ke @userinfobot untuk melihat ID Telegram kamu.\n" +
-			"2. Teruskan (forward) ID tersebut ke admin <b>@unxpctedd</b> untuk didaftarkan."
+		// PERUBAHAN: Menampilkan ID Telegram user secara langsung
+		pesan := fmt.Sprintf("🚫 <b>Akses Ditolak</b>\n\n"+
+			"Anda belum terdaftar dalam sistem ini.\n\n"+
+			"👉 <b>Cara Daftar:</b>\n"+
+			"1. ID Telegram kamu adalah: <code>%d</code>\n"+
+			"2. Teruskan (forward) ID tersebut ke admin <b>@unxpctedd</b> untuk didaftarkan.", chatID)
 		
 		sendReply(chatID, pesan, nil)
 		c.JSON(http.StatusOK, gin.H{"status": "replied_unregistered"})

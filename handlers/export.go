@@ -17,7 +17,7 @@ import (
 func ExportExcel(c *gin.Context) {
 	userID := getUserID(c) // Helper dari transaction.go (pastikan package sama)
 
-	// 1. Ambil Filter Bulan & Tahun (Opsional, default = semua)
+	// 1. Ambil Filter Bulan & Tahun (Opsionals, default = semua)
 	monthStr := c.Query("month")
 	yearStr := c.Query("year")
 

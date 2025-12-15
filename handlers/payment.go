@@ -74,7 +74,7 @@ func VerifyPayment(c *gin.Context) {
 
 	// PROSES OCR KE API EKSTERNAL
 	apiKey := os.Getenv("OCR_API_KEY")
-	// Jika API Key kosong, anggap manual check (fallback aman)
+	// Jika API Key kosong, anggap manual checks (fallback aman)
 	if apiKey == "" {
 		savePaymentLog(userID.(uint), filename, "MANUAL_CHECK", 0, "API Key Missing", c)
 		c.JSON(http.StatusAccepted, gin.H{"message": "OCR Off, masuk verifikasi manual", "manual_check": true})
