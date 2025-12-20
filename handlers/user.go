@@ -28,8 +28,13 @@ func GetUserSettings(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"daily_limit":   user.DailyLimit,
-		"alert_message": user.AlertMessage,
+		"id":            user.ID,
+        "username":      user.Username,
+        "role":          user.Role,
+        "status":        user.Status,
+        "telegram_id":   user.TelegramID,   // <--- PENTING: Tambahkan ini!
+        "daily_limit":   user.DailyLimit,
+        "alert_message": user.AlertMessage,
 	})
 }
 

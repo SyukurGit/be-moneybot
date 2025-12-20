@@ -24,7 +24,7 @@ func GetAllUsers(c *gin.Context) {
 	}
 
 	var users []models.User
-	database.DB.Select("id, username, role, status, trial_ends_at, telegram_id, created_at").Find(&users)
+	database.DB.Select("id, username, role, status, trial_ends_at, telegram_id, last_transaction_at, created_at").Find(&users)
 	
 	c.JSON(http.StatusOK, gin.H{"data": users})
 }
@@ -119,6 +119,8 @@ func GetUserStats(c *gin.Context) {
 			"status":        user.Status,        // Info Status
 			"trial_ends_at": user.TrialEndsAt,   // Info Expired
 			"role":          user.Role,
+			"telegram_id":         user.TelegramID,        // Kirim ID Telegram
+            "last_transaction_at": user.LastTransactionAt, // Kirim Waktu Input Terakhir
 		},
 		"stats": gin.H{
 			"income_this_month":  income,

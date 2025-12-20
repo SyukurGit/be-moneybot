@@ -10,7 +10,6 @@ type Transaction struct {
 	Category  string    `json:"category"`
 	Note      string    `json:"note"`
 	CreatedAt time.Time `json:"created_at"`
-	
 	// Optional: Relasi ke User (biar GORM tahu)
 	User User `gorm:"foreignKey:UserID" json:"-"`
 }

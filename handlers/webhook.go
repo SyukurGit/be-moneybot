@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -108,6 +109,8 @@ func TelegramWebhook(c *gin.Context) {
 					Note:     "Via Quick Button",
 				}
 				database.DB.Create(&trx)
+
+				database.DB.Model(&models.User{}).Where("id = ?", user.ID).Update("last_transaction_at", time.Now())
 
 				icon := "Dn"
 				alertMsg := ""
@@ -250,7 +253,7 @@ func TelegramWebhook(c *gin.Context) {
 		Note:     strings.Join(parts[2:], " "),
 	}
 	database.DB.Create(&trx)
-
+database.DB.Model(&models.User{}).Where("id = ?", user.ID).Update("last_transaction_at", time.Now())
 	icon := "Dn"
 	alertMsg := ""
 	if tipe == "income" { 

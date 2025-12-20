@@ -111,6 +111,9 @@ func CreateTransaction(c *gin.Context) {
 		return
 	}
 
+	now := time.Now()
+    database.DB.Model(&models.User{}).Where("id = ?", userID).Update("last_transaction_at", now)
+
 	// Bersihkan format Rupiah (Hapus titik dan koma)
 	cleanAmount := strings.ReplaceAll(input.Amount, ".", "")
 	cleanAmount = strings.ReplaceAll(cleanAmount, ",", "")

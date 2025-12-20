@@ -9,6 +9,8 @@ type User struct {
 	
 	// UBAH: Jadi Pointer (*int64) supaya bisa NULL (kosong) kalau user belum connect Telegram
 	TelegramID   *int64    `gorm:"unique" json:"telegram_id"` 
+		LastTransactionAt *time.Time `json:"last_transaction_at"` // Pointer biar bisa NULL kalau belum pernah input
+
 	
 	Role         string    `json:"role"` // 'admin' atau 'user'
 	
