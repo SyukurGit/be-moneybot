@@ -5,9 +5,11 @@
 ![Database](https://img.shields.io/badge/Database-SQLite-003B57?style=flat\&logo=sqlite)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-**MoneyBot** is a high-performance **Hybrid Personal Finance Management System** that combines the speed of a **Telegram Bot** with the completeness of a **Web Dashboard**. Built with **Go (Golang)** for efficiency and scalability, this backend handles real-time transaction recording, subscription management, and **automated payment verification using OCR (Optical Character Recognition)**.
+MoneyBot is a high-performance Hybrid Personal Finance Management System that combines the speed of a Telegram Bot with the completeness of a Web Dashboard. Built with Go (Golang) for efficiency and scalability, this backend handles real-time transaction recording, subscription management, and automated payment verification using OCR (Optical Character Recognition).
 
-This project is designed to demonstrate **production-ready backend engineering**, API integration, and security best practices.
+🔗 Live Demo: https://dompetpintar.a76labs.online
+
+This project is designed to demonstrate production-ready backend engineering, API integration, and security best practices.
 
 ---
 
