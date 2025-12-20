@@ -1,157 +1,161 @@
-
 # 💰 MoneyBot Backend (Go + Gin + Telegram)
 
-![Go Version](https://img.shields.io/badge/Go-1.25-00ADD8?style=flat&logo=go)
-![Framework](https://img.shields.io/badge/Framework-Gin-00ADD8?style=flat&logo=go)
-![Database](https://img.shields.io/badge/Database-SQLite-003B57?style=flat&logo=sqlite)
+![Go Version](https://img.shields.io/badge/Go-1.25-00ADD8?style=flat\&logo=go)
+![Framework](https://img.shields.io/badge/Framework-Gin-00ADD8?style=flat\&logo=go)
+![Database](https://img.shields.io/badge/Database-SQLite-003B57?style=flat\&logo=sqlite)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-**MoneyBot** adalah sistem manajemen keuangan pribadi hibrida (*Hybrid Financial Tracker*) yang menggabungkan kecepatan **Bot Telegram** dengan kelengkapan **Dashboard Web**. Dibangun dengan **Go (Golang)** untuk performa tinggi, sistem ini menangani pencatatan transaksi real-time, manajemen langganan pengguna, dan verifikasi pembayaran otomatis menggunakan **OCR (Optical Character Recognition)**.
+**MoneyBot** is a high-performance **Hybrid Personal Finance Management System** that combines the speed of a **Telegram Bot** with the completeness of a **Web Dashboard**. Built with **Go (Golang)** for efficiency and scalability, this backend handles real-time transaction recording, subscription management, and **automated payment verification using OCR (Optical Character Recognition)**.
+
+This project is designed to demonstrate **production-ready backend engineering**, API integration, and security best practices.
 
 ---
 
-## 🚀 Mengapa Project Ini Dibuat?
+## 🚀 Project Motivation
 
-Sistem ini dirancang untuk menyelesaikan masalah pencatatan keuangan yang ribet.
-- **Instant Input:** User bisa mencatat pengeluaran langsung dari chat Telegram (Webhooks).
-- **Smart Verification:** Sistem langganan yang memverifikasi bukti transfer secara otomatis menggunakan AI/OCR tanpa perlu campur tangan admin.
-- **Data Ownership:** Export laporan keuangan ke Excel kapan saja.
+Traditional expense tracking tools are often slow, manual, and fragmented. MoneyBot was created to simplify financial tracking through automation and instant interaction.
+
+Key goals:
+
+* **Instant Input:** Record income and expenses directly from Telegram chat using webhooks.
+* **Automated Subscription Verification:** No manual admin validation—payment proof is verified automatically using OCR.
+* **Data Ownership:** Users can export their financial reports to Excel anytime.
 
 ---
 
-## 🌟 Fitur Unggulan (Key Features)
+## 🌟 Key Features
 
-### 1. 🤖 Telegram Bot Integration (Webhook)
-Berinteraksi langsung dengan backend melalui Telegram.
-- **Smart Parsing:** Input cepat dengan format `+50000 Gaji` atau `-20000 Makan`.
-- **Interactive UI:** Menggunakan *Inline Buttons* untuk kategori dan konfirmasi hapus data.
-- **Real-time Feedback:** Notifikasi instan saat transaksi berhasil atau limit harian terlampaui.
+### 1. 🤖 Telegram Bot Integration (Webhook-Based)
 
-### 2. 💳 Automated Payment Verification (OCR)
-Fitur *Killer* untuk sistem langganan (SaaS-ready).
-- **AI Powered:** Mengintegrasikan **OCR.Space API** untuk membaca teks dari gambar struk transfer.
-- **Logic Validasi:** Algoritma cerdas yang mendeteksi kata kunci ("BERHASIL", "SUKSES"), nama Bank (BCA, DANA, GOPAY), dan nominal transfer.
-- **Auto-Activation:** Jika valid, status user otomatis berubah menjadi `active`.
+Seamless interaction between users and backend services.
 
-### 3. 📊 Comprehensive Dashboard API
-Menyediakan endpoint RESTful untuk frontend.
-- **Analitik:** Data chart harian dan breakdown per kategori.
-- **Excel Export:** Generate laporan `.xlsx` menggunakan library `excelize`.
-- **Budget Control:** Middleware pintar untuk membatasi transaksi jika melebihi *Daily Limit*.
+* **Smart Parsing:** Fast input format such as `+50000 Salary` or `-20000 Lunch`.
+* **Interactive UI:** Inline buttons for category selection and delete confirmations.
+* **Real-Time Feedback:** Instant notifications when transactions are saved or daily limits are exceeded.
 
-### 4. 🔐 Secure & Role-Based Access
-- **JWT Authentication:** Keamanan berbasis token untuk setiap request API.
-- **User Roles:** Pemisahan akses antara `User` biasa dan `Super Admin`.
-- **Status System:** Middleware `RequireActiveOrTrial` memastikan hanya user yang membayar/trial yang bisa akses fitur premium.
+### 2. 💳 Automated Payment Verification (OCR-Powered)
+
+A **core SaaS-ready feature** for subscription-based systems.
+
+* **AI OCR Integration:** Uses **OCR.Space API** to extract text from payment screenshots.
+* **Validation Logic:** Detects success keywords (e.g. *SUCCESS*, *COMPLETED*), supported banks/e-wallets (BCA, DANA, GoPay), and transfer amounts.
+* **Auto Activation:** Valid payments automatically update user status to `active`.
+
+### 3. 📊 Dashboard-Ready REST API
+
+Designed to support modern frontend dashboards.
+
+* **Analytics Endpoints:** Daily financial charts and category-based breakdowns.
+* **Excel Export:** Generates `.xlsx` reports using **Excelize**.
+* **Budget Control:** Smart middleware blocks transactions when daily spending limits are exceeded.
+
+### 4. 🔐 Security & Role-Based Access Control
+
+Built with security-first principles.
+
+* **JWT Authentication:** Stateless, secure token-based authentication.
+* **User Roles:** Separation between standard users and `Super Admin`.
+* **Subscription Middleware:** `RequireActiveOrTrial` ensures only active/trial users can access premium features.
 
 ---
 
 ## 🛠️ Tech Stack & Architecture
 
-Project ini menggunakan **Monolithic Architecture** yang efisien dan mudah di-deploy.
+MoneyBot uses a **Monolithic Architecture** for simplicity, reliability, and ease of deployment.
 
-| Komponen | Teknologi | Deskripsi |
-| :--- | :--- | :--- |
-| **Language** | [Go (Golang)](https://go.dev/) | Core logic, chosen for speed & concurrency. |
-| **Framework** | [Gin Gonic](https://github.com/gin-gonic/gin) | HTTP Web Framework tercepat untuk Go. |
-| **Database** | [SQLite](https://www.sqlite.org/) | Database ringan, zero-configuration (via GORM). |
-| **ORM** | [GORM](https://gorm.io/) | Object Relational Mapping untuk manipulasi data aman. |
-| **Auth** | [JWT-Go](https://github.com/golang-jwt/jwt) | Stateless authentication mechanism. |
-| **OCR** | [OCR.Space API](https://ocr.space/) | External service untuk ekstrak teks dari gambar. |
-| **Report** | [Excelize](https://github.com/xuri/excelize) | Engine pembuat file Excel performa tinggi. |
+| Component          | Technology    | Description                                               |
+| ------------------ | ------------- | --------------------------------------------------------- |
+| **Language**       | Go (Golang)   | Core business logic with high performance and concurrency |
+| **Framework**      | Gin Gonic     | Fast and minimal HTTP web framework                       |
+| **Database**       | SQLite        | Lightweight, zero-configuration database                  |
+| **ORM**            | GORM          | Safe and expressive database operations                   |
+| **Authentication** | JWT           | Secure stateless authentication                           |
+| **OCR Service**    | OCR.Space API | Automated text extraction from payment images             |
+| **Reporting**      | Excelize      | High-performance Excel report generation                  |
 
-### 📂 Struktur Folder
+### 📂 Project Structure
+
 ```bash
 backend-gin/
-├── handlers/      # Controller logic (Transaction, Payment, Webhook)
-├── middleware/    # Auth (JWT) & Subscription Check
-├── models/        # Database Structs (GORM)
-├── utils/         # Helper functions (Token Generator)
-└── main.go        # Entry point & Router Configuration
-
+├── handlers/      # Controller logic (Transactions, Payments, Telegram Webhook)
+├── middleware/    # JWT auth & subscription guards
+├── models/        # GORM database models
+├── utils/         # Helper utilities (JWT, parsing, helpers)
+└── main.go        # Application entry point & router setup
 ```
 
 ---
 
 ## 🔌 API Endpoints Overview
 
-Berikut adalah beberapa endpoint utama yang tersedia:
-
-| Method | Endpoint | Deskripsi | Auth |
-| --- | --- | --- | --- |
-| `POST` | `/login` | Masuk & dapatkan Token JWT | ❌ |
-| `POST` | `/telegram/webhook` | Endpoint penerima pesan dari Telegram | ❌ |
-| `POST` | `/api/transactions` | Input transaksi baru | ✅ |
-| `GET` | `/api/chart/daily` | Data grafik keuangan harian | ✅ |
-| `GET` | `/api/export` | Download laporan Excel | ✅ |
-| `POST` | `/api/verify-payment` | Upload bukti bayar (Auto OCR Check) | ✅ |
+| Method | Endpoint              | Description                           | Auth |
+| ------ | --------------------- | ------------------------------------- | ---- |
+| `POST` | `/login`              | Authenticate and obtain JWT           | ❌    |
+| `POST` | `/telegram/webhook`   | Telegram webhook receiver             | ❌    |
+| `POST` | `/api/transactions`   | Create new transaction                | ✅    |
+| `GET`  | `/api/chart/daily`    | Daily financial chart data            | ✅    |
+| `GET`  | `/api/export`         | Download Excel financial report       | ✅    |
+| `POST` | `/api/verify-payment` | Upload payment proof (OCR auto-check) | ✅    |
 
 ---
 
-## ⚙️ Cara Menjalankan (Installation)
+## ⚙️ Installation & Setup
 
-### Prasyarat
+### Prerequisites
 
-* Go version 1.20+
+* Go 1.20+
 * Git
 
 ### 1. Clone Repository
 
 ```bash
-git clone [https://github.com/username-anda/be-moneybot.git](https://github.com/username-anda/be-moneybot.git)
+git clone https://github.com/your-username/be-moneybot.git
 cd be-moneybot
-
 ```
 
-### 2. Setup Environment Variables
+### 2. Environment Configuration
 
-Buat file `.env` di root folder:
+Create a `.env` file in the project root:
 
 ```env
-JWT_SECRET=rahasia_super_aman
-OCR_API_KEY=dapatkan_di_ocr_space
-TELEGRAM_BOT_TOKEN=token_bot_telegram_anda
-OWNER_SECRET=kunci_untuk_buat_admin
-
+JWT_SECRET=your_super_secure_secret
+OCR_API_KEY=your_ocr_space_api_key
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+OWNER_SECRET=admin_creation_secret
 ```
 
 ### 3. Install Dependencies
 
 ```bash
 go mod tidy
-
 ```
 
-### 4. Jalankan Server
+### 4. Run the Server
 
 ```bash
 go run main.go
-
 ```
 
-Server akan berjalan di `http://localhost:8080`.
+Server will start at `http://localhost:8080`.
 
 ---
 
-
-
 ## 🤝 Contributing
 
-Kontribusi sangat diterima! Silakan fork repository ini dan buat Pull Request.
+Contributions are welcome and appreciated.
 
-1. Fork Project
-2. Create Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to Branch (`git push origin feature/AmazingFeature`)
-5. Open Pull Request
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/YourFeature`)
+3. Commit your changes (`git commit -m "Add YourFeature"`)
+4. Push to the branch (`git push origin feature/YourFeature`)
+5. Open a Pull Request
 
 ---
 
 ## 📄 License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+This project is licensed under the **MIT License**. See the `LICENSE` file for details.
 
 ---
 
 **Developed with ❤️ using Go.**
-
